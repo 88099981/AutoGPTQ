@@ -128,7 +128,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
 
     def _prepare_examples_for_quantization(
         self,
-        examples: List[Dict[str, Union[List[int], torch.LongTensor]]],
+        examples: List[Dict[str, Union[List[int], torch.LongTensor]]], #example来源于dataset，是字符串经过tokenizer处理后的结果
         batch_size: int = 1,
     ):
         def _convert_tensor_to_list(tensor):
@@ -137,9 +137,9 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
                     tensor = tensor.unsqueeze(0)
                 tensor = tensor.long()
                 return tensor.cpu().numpy().tolist()
-            return [tensor]
+            return [tensor] #返回的是一个二维列表，其中第一维为1
 
-        new_examples = []
+        new_examples = [] 
         for example in examples:
             input_ids = _convert_tensor_to_list(example["input_ids"])
             attention_mask = _convert_tensor_to_list(example["attention_mask"])
@@ -153,20 +153,20 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
                 labels = copy.deepcopy(input_ids)
             new_examples.append(
                 {
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask,
-                    "labels": labels,
+                    "input_ids": input_ids, #用于位置编码
+                    "attention_mask": attention_mask, #用于确定句子长度
+                    "labels": labels, #用于ppl计算
                 }
             )
-        pad_token_id = self.config.pad_token_id
+        pad_token_id = self.config.pad_token_id # pad_token_id是tokenizer的特殊token，用于填充句子长度
         if not pad_token_id:
-            pad_token_id = self.config.eos_token_id
+            pad_token_id = self.config.eos_token_id 
 
         new_examples = [
             collate_data(new_examples[start : start + batch_size], pad_token_id)
-            for start in range(0, len(new_examples), batch_size)
+            for start in range(0, len(new_examples), batch_size) #将数据按照batch_size进行划分，返回的
         ]
-        for new_example in new_examples:
+        for new_example in new_examples: #new_example是字典列表
             del new_example["labels"]
 
         return new_examples
@@ -240,7 +240,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
                 if k not in ["hidden_states", "attention_mask", "position_ids"]:
                     one_kwargs[k] = nested_move_to_device(v, data_device)
             layer_input_kwargs.append(one_kwargs)
-            raise ValueError
+            raise ValueError # 利用ValueError可以在每次获取到layer[0]的输入之后停止forward
 
         force_layer_back_to_cpu = False
         if get_device(layers[0]) == CPU:
@@ -248,40 +248,40 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
             force_layer_back_to_cpu = True
 
         ori_outside_layer_module_devices = {}
-        for module_name in self.outside_layer_modules:
+        for module_name in self.outside_layer_modules: #解决Billm中的其他层和model以及张量不在同一个gpu的问题
             module = get_module_by_name_prefix(self.model, module_name)
 
             if module is None:
                 continue
 
-            ori_outside_layer_module_devices[module_name] = get_device(module)
+            ori_outside_layer_module_devices[module_name] = get_device(module) #记录module所在的设备，用于后面还原
             if module is not None:
                 move_to_device(module, cur_layer_device)
 
         # TODO: make this optional, backporting https://github.com/huggingface/optimum/blob/main/optimum/gptq/quantizer.py
         handle = layers[0].register_forward_pre_hook(store_input_hook, with_kwargs=True)
-        for example in examples:
+        for example in examples: # 将example移动到当前层所在的设备上
             for k, v in example.items():
                 if len(v.shape) == 1:
                     v = v.unsqueeze(0)
                 example[k] = move_to_device(v, cur_layer_device)
             try:
-                self.model(**example)
-            except ValueError:
+                self.model(**example) # 跑一次模型，将每层的输入数据存储到layer_inputs, attention_masks, position_ids, layer_input_kwargs中
+            except ValueError: 
                 pass
         handle.remove()
 
-        move_to_device(layers[0], CPU if force_layer_back_to_cpu else cur_layer_device)
+        move_to_device(layers[0], CPU if force_layer_back_to_cpu else cur_layer_device) #将layer[0]还原到原来的设备上
         for module_name in self.outside_layer_modules:
             module = get_module_by_name_prefix(self.model, module_name)
             if module is not None:
-                move_to_device(module, ori_outside_layer_module_devices[module_name])
+                move_to_device(module, ori_outside_layer_module_devices[module_name]) #将module还原到原来的设备上
 
         torch.cuda.empty_cache()
 
         inside_layer_modules = self.inside_layer_modules
         if not self.quantize_config.true_sequential:
-            inside_layer_modules = [sum(inside_layer_modules, [])]
+            inside_layer_modules = [sum(inside_layer_modules, [])] #将inside_layer_modules展平
         quantizers = {}
         for i in range(len(layers)):
             logger.info(f"Start quantizing layer {i + 1}/{len(layers)}")
@@ -315,7 +315,7 @@ class BaseGPTQForCausalLM(nn.Module, PushToHubMixin):
                 handles = []
                 for name in subset:
                     handles.append(subset[name].register_forward_hook(add_batch(name)))
-                for j in range(num_batches):
+                for j in range(num_batches): # 准备量化时所使用的数据
                     layer_input = []
                     for k, layer_inp in enumerate(layer_inputs[j]):
                         layer_input.append(move_to_device(layer_inp, cur_layer_device))

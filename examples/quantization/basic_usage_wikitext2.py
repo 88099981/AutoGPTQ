@@ -5,8 +5,8 @@ import torch.nn as nn
 from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 
 
-pretrained_model_dir = "facebook/opt-125m"
-quantized_model_dir = "opt-125m-4bit-128g"
+pretrained_model_dir = "/home/liukunlong/lkl_model/llama/Llama-2-7b-hf"
+quantized_model_dir = "/home/liukunlong/lkl_model/llama/Llama-2-7b-hf-4bit"
 
 
 # os.makedirs(quantized_model_dir, exist_ok=True)
@@ -22,7 +22,7 @@ def get_wikitext2(nsamples, seed, seqlen, model):
         tokenizer = AutoTokenizer.from_pretrained(model, use_fast=False)
     except Exception:
         tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
-    trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt")
+    trainenc = tokenizer("\n\n".join(traindata["text"]), return_tensors="pt") #这里返回的是一个字典，包含input_ids, attention_mask, 其中input_ids的shape为(1, 208862)
     testenc = tokenizer("\n\n".join(testdata["text"]), return_tensors="pt")
 
     import random
@@ -32,7 +32,7 @@ def get_wikitext2(nsamples, seed, seqlen, model):
     torch.random.manual_seed(0)
 
     traindataset = []
-    for _ in range(nsamples):
+    for _ in range(nsamples): #将经过tokenizer后的数据进行随机采样，一共采了128次，每次的长度都为seqlen，之后打包为一个列表
         i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
         j = i + seqlen
         inp = trainenc.input_ids[:, i:j]
@@ -150,8 +150,8 @@ def main():
     # with value under torch.LongTensor type.
     model.quantize(traindataset, use_triton=False)
 
-    # save quantized model
-    model.save_quantized(quantized_model_dir)
+    # # save quantized model
+    # model.save_quantized(quantized_model_dir)
 
     # save quantized model using safetensors
     model.save_quantized(quantized_model_dir, use_safetensors=True)

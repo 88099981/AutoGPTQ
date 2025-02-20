@@ -140,20 +140,20 @@ def make_data_block(
 
 def collate_data(blocks: List[Dict[str, List[List[int]]]], pad_token_id: int) -> Dict[str, LongTensor]:
     def pad_block(block, pads):
-        return torch.cat((pads.to(block.device), block), dim=-1)
+        return torch.cat((pads.to(block.device), block), dim=-1) 
 
-    input_ids_blocks = [LongTensor(block["input_ids"]) for block in blocks]
+    input_ids_blocks = [LongTensor(block["input_ids"]) for block in blocks] #列表全换成LongTensor
     attention_mask_blocks = [LongTensor(block["attention_mask"]) for block in blocks]
     label_blocks = [LongTensor(block["labels"]) for block in blocks]
 
     bsz = len(blocks)
-    inp_max_len = max([block.size(-1) for block in input_ids_blocks])
+    inp_max_len = max([block.size(-1) for block in input_ids_blocks]) #找到最长的seq_len，这里的block是张量。形状为[bsz, seq_len]
     label_max_len = max([block.size(-1) for block in label_blocks])
 
     for i in range(bsz):
         block_bsz, block_inp_len = input_ids_blocks[i].shape
         block_label_len = label_blocks[i].shape[-1]
-        pad_num = inp_max_len - block_inp_len
+        pad_num = inp_max_len - block_inp_len #补全所有batch的长度为batch中最长的长度
         if pad_num > 0:
             input_ids_blocks[i] = pad_block(input_ids_blocks[i], torch.ones((block_bsz, pad_num)) * pad_token_id)
             attention_mask_blocks[i] = pad_block(attention_mask_blocks[i], torch.zeros((block_bsz, pad_num)))
@@ -162,7 +162,7 @@ def collate_data(blocks: List[Dict[str, List[List[int]]]], pad_token_id: int) ->
             label_blocks[i] = pad_block(label_blocks[i], torch.ones((block_bsz, label_pad_num)) * -100)
 
     return {
-        "input_ids": torch.cat(input_ids_blocks, dim=0).long(),
+        "input_ids": torch.cat(input_ids_blocks, dim=0).long(), 
         "attention_mask": torch.cat(attention_mask_blocks, dim=0).long(),
         "labels": torch.cat(label_blocks, dim=0).long(),
     }

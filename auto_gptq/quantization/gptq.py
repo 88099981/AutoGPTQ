@@ -38,7 +38,7 @@ class GPTQ:
         if len(inp.shape) == 2:
             inp = inp.unsqueeze(0)
         tmp = inp.shape[0]
-        if isinstance(self.layer, nn.Linear) or isinstance(self.layer, transformers.Conv1D):
+        if isinstance(self.layer, nn.Linear) or isinstance(self.layer, transformers.Conv1D):# 在处理输入的时候con1d和线性层的输入都是[batch_size, seq_len, hidden_size]
             if len(inp.shape) == 3:
                 inp = inp.reshape((-1, inp.shape[-1]))
             inp = inp.t()
@@ -52,7 +52,7 @@ class GPTQ:
             inp = unfold(inp)
             inp = inp.permute([1, 0, 2])
             inp = inp.flatten(1)
-        self.H *= self.nsamples / (self.nsamples + tmp)
+        self.H *= self.nsamples / (self.nsamples + tmp) # 按照样本量更新H矩阵
         self.nsamples += tmp
         # inp = inp.float()
         inp = math.sqrt(2 / self.nsamples) * inp.float()
@@ -70,7 +70,7 @@ class GPTQ:
         W = self.layer.weight.data.clone()
         if isinstance(self.layer, nn.Conv2d):
             W = W.flatten(1)
-        if isinstance(self.layer, transformers.Conv1D):
+        if isinstance(self.layer, transformers.Conv1D): # 在处理权重矩阵时，con1d和线性层的权重矩阵互为转置
             W = W.t()
         W = W.float()
 
@@ -95,7 +95,7 @@ class GPTQ:
 
             groups = []
             for i in range(0, self.columns, group_size):
-                quantizer = copy.deepcopy(self.quantizer)
+                quantizer = copy.deepcopy(self.quantizer) # 深拷贝，防止变量之间相互影响
                 quantizer.find_params(W[:, i : (i + group_size)], weight=True)
                 scale.append(quantizer.scale)
                 zero.append(quantizer.zero)

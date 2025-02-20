@@ -9,7 +9,7 @@ logger = getLogger(__name__)
 
 def quantize(x, scale, zero, maxq):
     if maxq < 0:
-        return (x > scale / 2).float() * scale + (x < zero / 2).float() * zero
+        return (x > scale / 2).float() * scale + (x < zero / 2).float() * zero # GPTQ的二值量化代码，这里是将x量化为scale或zero
     q = torch.clamp(torch.round(x / scale) + zero, 0, maxq)
     return scale * (q - zero)
 
@@ -29,7 +29,7 @@ class Quantizer(nn.Module):
         mse=False,
         norm=2.4,
         grid=100,
-        maxshrink=0.8,
+        maxshrink=0.8, # 量化的最大缩小比例
         trits=False,
     ):
         self.maxq = torch.tensor(2**bits - 1)
@@ -49,7 +49,7 @@ class Quantizer(nn.Module):
         shape = x.shape
         if self.perchannel:
             if weight:
-                x = x.flatten(1)
+                x = x.flatten(1) # 将从第二个维度开始展平
             else:
                 if len(shape) == 4:
                     x = x.permute([1, 0, 2, 3])
@@ -62,8 +62,8 @@ class Quantizer(nn.Module):
             x = x.flatten().unsqueeze(0)
 
         tmp = torch.zeros(x.shape[0], device=dev)
-        xmin = torch.minimum(x.min(1)[0], tmp)
-        xmax = torch.maximum(x.max(1)[0], tmp)
+        xmin = torch.minimum(x.min(1)[0], tmp) # 按照第二个维度（每一行的所有元素中）取最小值
+        xmax = torch.maximum(x.max(1)[0], tmp) # 按照第二个维度（每一行的所有元素中）取最大值
 
         if self.sym:
             xmax = torch.maximum(torch.abs(xmin), xmax)
