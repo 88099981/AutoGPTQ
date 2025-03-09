@@ -69,7 +69,7 @@ class Quantizer(nn.Module):
             xmax = torch.maximum(torch.abs(xmin), xmax)
             tmp = xmin < 0
             if torch.any(tmp):
-                xmin[tmp] = -xmax[tmp]
+                xmin[tmp] = -xmax[tmp] # 这里有可能扩充输入的正负半轴某一侧的最大值，可能会导致某些round之后的值根本取不到
         tmp = (xmin == 0) & (xmax == 0)
         xmin[tmp] = -1
         xmax[tmp] = +1
@@ -78,9 +78,9 @@ class Quantizer(nn.Module):
             self.scale = xmax
             self.zero = xmin
         else:
-            self.scale = (xmax - xmin) / self.maxq
+            self.scale = (xmax - xmin) / self.maxq 
             if self.sym:
-                self.zero = torch.full_like(self.scale, (self.maxq + 1) / 2)
+                self.zero = torch.full_like(self.scale, (self.maxq + 1) / 2) # zp固定为最大值的一半
             else:
                 self.zero = torch.round(-xmin / self.scale)
 
